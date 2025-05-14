@@ -1,0 +1,66 @@
+name: 'WuppieFuzz'
+description: 'Run REST API fuzzer WuppieFuzz against your software'
+inputs:
+  openapi_spec:
+    description: 'OpenAPI specification file'
+    required: true
+    default: 'openapi.yml'
+  timeout:
+    description: 'Time-out in seconds for the fuzzing campaign'
+    default: '60'
+  extra_args:
+    description: 'Extra arguments to pass to WuppieFuzz'
+    default: ''
+  docker_container:
+    description: 'Docker container to run'
+    required: true
+    default: 'vampi:latest'
+  container_port:
+    description: 'Internal port on which the container serves the API'
+    required: true
+    default: 5000
+  host_port:
+    description: 'Host port on which the fuzzer accesses the API'
+    default: 5000
+runs:
+  using: "composite"
+  steps:
+    - name: Download and install WuppieFuzz
+      run: |
+        curl --proto '=https' --tlsv1.2 -LsSf https://github.com/TNO-S3/WuppieFuzz/releases/download/v1.2.0/wuppiefuzz-installer.sh -o wuppiefuzz-installer.sh
+        echo "Verifying installer checksum..."
+        echo "7c7cecd6ca3a1001a82286efc67085e31cdc2c0d8fa9544772fdaf1cd3452444  wuppiefuzz-installer.sh" | sha256sum -c -
+        sh wuppiefuzz-installer.sh
+
+    - name: Edit OpenAPI Spec to Set Localhost Server
+      run: |
+        if ! command -v yq &> /dev/null; then
+          echo "yq not found, installing..."
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/mikefarah/yq/releases/download/v4.45.4/yq_linux_amd64 -o yq
+          echo "b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69  yq" | sha256sum -c -
+          chmod +x yq
+        fi
+        ./yq eval '.servers[0].url = "http://localhost:${{ inputs.host_port }}"' -i "${{ inputs.openapi_spec }}"
+
+    - name: Start program under test
+      run: |
+        docker run -d --name program_under_test -p ${{ inputs.host_port }}:${{ inputs.container_port }} ${{ inputs.docker_container }}
+        timeout 30s bash -c 'until [ "`docker inspect -f {{.State.Running}} program_under_test`" == "true" ]; do sleep 0.1; done' || { echo "Container failed to start"; exit 1; }
+
+    - name: Run WuppieFuzz Fuzzing Campaign
+      run: |
+        mkdir WuppieFuzz
+        cd WuppieFuzz
+        wuppiefuzz fuzz \
+          --report \
+          --log-level info \
+          --timeout ${{ inputs.timeout }} \
+          ${{ inputs.extra_args }} \
+          ../${{ inputs.openapi_spec }}
+
+    - name: Upload Fuzzing Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: fuzzing-report
+        path: WuppieFuzz/reports/
+
