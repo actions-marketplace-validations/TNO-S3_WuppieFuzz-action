@@ -27,9 +27,9 @@ runs:
   steps:
     - name: Download and install WuppieFuzz
       run: |
-        curl --proto '=https' --tlsv1.2 -LsSf https://github.com/TNO-S3/WuppieFuzz/releases/download/v1.4.1/wuppiefuzz-installer.sh -o wuppiefuzz-installer.sh
+        curl --proto '=https' --tlsv1.2 -LsSf https://github.com/TNO-S3/WuppieFuzz/releases/download/v1.4.3/wuppiefuzz-installer.sh -o wuppiefuzz-installer.sh
         echo "Verifying installer checksum..."
-        echo "7c7cecd6ca3a1001a82286efc67085e31cdc2c0d8fa9544772fdaf1cd3452444  wuppiefuzz-installer.sh" | sha256sum -c -
+        echo "797dabfded909d8bf71c57bf13e0d9a11aa867197f7da1650c80713612f0b678  wuppiefuzz-installer.sh" | sha256sum -c -
         sh wuppiefuzz-installer.sh
 
     - name: Edit OpenAPI Spec to Set Localhost Server
